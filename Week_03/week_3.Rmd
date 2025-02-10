@@ -1,0 +1,110 @@
+---
+title: "week_3_parallel_run"
+author: "Bala Sai Phani Krishna Yadamreddy"
+date: "2025-02-10"
+output: html_document
+---
+
+
+```{r}
+
+# install.packages("readxl")
+library(readxl)
+
+# install.packages("dplyr")
+library(dplyr)
+
+```
+
+```{r}
+df <- read_excel("/Users/phani/Desktop/phani_assignments/clinics.xls", sheet = "Results")
+```
+
+
+```{r}
+
+haversine <- function(lat1, lon1, lat2, lon2) {
+  MILES <- 3959
+  
+  # Convert inputs to numeric (if they are not already)
+  lat1 <- as.numeric(lat1)
+  lon1 <- as.numeric(lon1)
+  lat2 <- as.numeric(lat2)
+  lon2 <- as.numeric(lon2)
+  
+  # Convert degrees to radians
+  deg2rad <- function(deg) {
+    return(deg * pi / 180)
+  }
+  
+  lat1 <- deg2rad(lat1)
+  lon1 <- deg2rad(lon1)
+  lat2 <- deg2rad(lat2)
+  lon2 <- deg2rad(lon2)
+  
+  # Calculate differences
+  dlat <- lat2 - lat1
+  dlon <- lon2 - lon1
+  
+  # Haversine formula
+  a <- sin(dlat / 2)^2 + cos(lat1) * cos(lat2) * sin(dlon / 2)^2
+  c <- 2 * asin(sqrt(a))
+  
+  # Total distance in miles
+  total_miles <- MILES * c
+  return(total_miles)
+}
+
+```
+
+
+```{r}
+
+execution_time <- system.time({
+
+# Assuming your dataframe has columns named lat1, lon1, lat2, lon2
+df$distance <- apply(df, 1, function(row) {
+  haversine(40.671, -73.985, row['locLat'], row['locLong'])
+})
+
+
+})
+
+print(execution_time)
+```
+
+
+```{r}
+
+execution_time <- system.time({
+
+# Initialize an empty vector to store distances
+distances <- numeric(nrow(df))
+
+# Loop through each row and apply the haversine function
+for (i in 1:nrow(df)) {
+  distances[i] <- haversine(40.671, -73.985, df$locLat[i], df$locLong[i])
+}
+
+# Add the calculated distances as a new column
+df$distance <- distances
+
+})
+
+print(execution_time)
+
+```
+
+
+```{r}
+
+execution_time <- system.time({
+df$distance <- mapply(haversine, 40.671, -73.985, df$locLat, df$locLong)
+})
+
+print(execution_time)
+
+
+```
+
+
