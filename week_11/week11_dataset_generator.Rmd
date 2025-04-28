@@ -143,10 +143,10 @@ generate_diabetes_data <- function(sz, save_csv = TRUE, file_path = "diabetes_bo
 
 ```{r}
 # Generate data with 1 million rows and save to default file
-df_100 = generate_diabetes_data(sz = 100, save_csv = TRUE, file_path = "sample_100.csv")
-df_1000 = generate_diabetes_data(sz = 1000, save_csv = TRUE, file_path = "sample_1000.csv")
-df_10000 = generate_diabetes_data(sz = 10000, save_csv = TRUE, file_path = "sample_10000.csv")
-df_100000 = generate_diabetes_data(sz = 100000, save_csv = TRUE, file_path = "sample_100000.csv")
+# df_100 = generate_diabetes_data(sz = 100, save_csv = TRUE, file_path = "sample_100.csv")
+# df_1000 = generate_diabetes_data(sz = 1000, save_csv = TRUE, file_path = "sample_1000.csv")
+# df_10000 = generate_diabetes_data(sz = 10000, save_csv = TRUE, file_path = "sample_10000.csv")
+# df_100000 = generate_diabetes_data(sz = 100000, save_csv = TRUE, file_path = "sample_100000.csv")
 df_1000000 = generate_diabetes_data(sz = 1000000, save_csv = TRUE, file_path = "sample_1000000.csv")
 df_10000000 = generate_diabetes_data(sz = 10000000, save_csv = TRUE, file_path = "sample_10000000.csv")
 ```
