@@ -1,0 +1,274 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+
+library(mlbench)
+library(purrr)
+library(xgboost)
+library(mlbench)
+library(data.table)
+library(caret)
+library(purrr)
+library(cli)
+```
+
+
+```{r}
+data("PimaIndiansDiabetes2")
+ds <- as.data.frame(na.omit(PimaIndiansDiabetes2))
+## fit a logistic regression model to obtain a parametric equation
+logmodel <- glm(diabetes ~ .,
+                data = ds,
+                family = "binomial")
+summary(logmodel)
+```
+
+
+```{r}
+cfs <- coefficients(logmodel) ## extract the coefficients
+prednames <- variable.names(ds)[-9] ## fetch the names of predictors in a vector
+prednames
+```
+
+
+```{r}
+sz <- 100 ## to be used in sampling
+##sample(ds$pregnant, size = sz, replace = T)
+
+dfdata <- map_dfc(prednames,
+                  function(nm){ ## function to create a sample-with-replacement for each pred.
+                    eval(parse(text = paste0("sample(ds$",nm,
+                                             ", size = sz, replace = T)")))
+                  }) 
+## map the sample-generator on to the vector of predictors
+## and combine them into a dataframe
+```
+
+
+```{r}
+names(dfdata) <- prednames
+dfdata
+```
+
+
+```{r}
+class(cfs[2:length(cfs)])
+```
+
+
+```{r}
+length(cfs)
+length(prednames)
+## Next, compute the logit values
+pvec <- map((1:8),
+            function(pnum){
+              cfs[pnum+1] * eval(parse(text = paste0("dfdata$",
+                                                     prednames[pnum])))
+            }) %>% ## create beta[i] * x[i]
+  reduce(`+`) + ## sum(beta[i] * x[i])
+  cfs[1] ## add the intercept
+```
+
+
+```{r}
+## exponentiate the logit to obtain probability values of thee outcome variable
+dfdata['outcome'] <- ifelse(1/(1 + exp(-(pvec))) > 0.5,
+                            1, 0)
+```
+
+
+```{r}
+dfdata
+```
+
+Now we are able to run and see how the dataset is getting created from the professors git repository now lets try to convert this to a function such that we can save them and load it in python and do conduct some experiments
+
+
+```{r}
+library(mlbench)
+library(purrr)
+library(dplyr)
+
+generate_diabetes_data <- function(sz, save_csv = TRUE, file_path = "diabetes_bootstrapped_data.csv") {
+  # Load and prepare original data
+  data("PimaIndiansDiabetes2")
+  ds <- as.data.frame(na.omit(PimaIndiansDiabetes2))
+  
+  # Fit logistic regression model
+  logmodel <- glm(diabetes ~ .,
+                  data = ds,
+                  family = "binomial")
+  
+  # Extract model components
+  cfs <- coefficients(logmodel)
+  prednames <- variable.names(ds)[-9]  # Remove the outcome column name
+  
+  # Generate bootstrap samples for each predictor
+  dfdata <- map_dfc(prednames,
+                   function(nm) {
+                     eval(parse(text = paste0("sample(ds$", nm,
+                                              ", size = sz, replace = T)")))
+                   })
+  
+  # Set column names
+  names(dfdata) <- prednames
+  
+  # Compute logit values and outcome probabilities
+  pvec <- map((1:length(prednames)),
+             function(pnum) {
+               cfs[pnum+1] * eval(parse(text = paste0("dfdata$",
+                                                      prednames[pnum])))
+             }) %>% 
+    reduce(`+`) + 
+    cfs[1]  # Add intercept
+  
+  # Add outcome column
+  dfdata['outcome'] <- ifelse(1/(1 + exp(-(pvec))) > 0.5, 1, 0)
+  
+  # Save to CSV if requested
+  if (save_csv) {
+    write.csv(dfdata, file_path, row.names = FALSE)
+    message(paste("Data saved to", file_path))
+  }
+  
+  # Return the generated dataframe
+  return(dfdata)
+}
+
+```
+
+
+```{r}
+# Generate data with 1 million rows and save to default file
+df_100 = generate_diabetes_data(sz = 100, save_csv = TRUE, file_path = "sample_100.csv")
+df_1000 = generate_diabetes_data(sz = 1000, save_csv = TRUE, file_path = "sample_1000.csv")
+df_10000 = generate_diabetes_data(sz = 10000, save_csv = TRUE, file_path = "sample_10000.csv")
+df_100000 = generate_diabetes_data(sz = 100000, save_csv = TRUE, file_path = "sample_100000.csv")
+df_1000000 = generate_diabetes_data(sz = 1000000, save_csv = TRUE, file_path = "sample_1000000.csv")
+df_10000000 = generate_diabetes_data(sz = 10000000, save_csv = TRUE, file_path = "sample_10000000.csv")
+```
+
+```{r}
+run_model_v2 <- function(df){
+  ##Creating train-test split (80% train, 20% test)
+  idx <- createDataPartition(df$outcome, p = 0.8, list = FALSE)
+  train <- df[idx, ]
+  test <- df[-idx, ]
+  
+  ##Converting to matrix
+  train_matrix <- xgb.DMatrix(data = as.matrix(select(train, -outcome)), label = train$outcome)
+  test_matrix <- xgb.DMatrix(data = as.matrix(select(test, -outcome)), label = test$outcome)
+  
+  ##Timing the model fitting
+  start_time <- Sys.time()
+  
+  ##XGBoost model
+  model <- xgboost(data = train_matrix,
+                   objective = "binary:logistic",
+                   nrounds = 50,
+                   verbose = 0)
+  
+  end_time <- Sys.time()
+  
+  ##Predictions
+  preds <- predict(model, test_matrix)
+  pred_labels <- ifelse(preds > 0.5, 1, 0)
+  
+  ##Calculating accuracy
+  acc <- mean(pred_labels == test$outcome)
+  
+  #$Calculating time taken
+  time_taken <- as.numeric(difftime(end_time, start_time, units = "secs"))
+  
+  print("Time taken in seconds ")
+  print(time_taken)
+  print("accuracy is ")
+  print(acc)
+}
+```
+
+
+```{r}
+run_model_v2(df_100)
+```
+
+```{r}
+run_model_v2(df_1000)
+```
+
+```{r}
+run_model_v2(df_10000)
+```
+
+```{r}
+run_model_v2(df_100000)
+```
+
+```{r}
+run_model_v2(df_1000000)
+```
+
+```{r}
+run_model_v3 <- function(df){
+    # Define training control: 5-fold CV
+  trctrl <- trainControl(method = "cv", number = 5)
+  
+  # Timing
+  start_time <- Sys.time()
+  
+  # Train model using caret with method = "xgbTree"
+  model <- train(as.factor(outcome) ~ ., data = df, method = "xgbTree", trControl = trctrl, verbose = FALSE)
+  
+  end_time <- Sys.time()
+  
+  # Get accuracy (caret gives resample accuracies directly)
+  acc <- max(model$results$Accuracy)
+  
+  # Calculate time
+  time_taken <- as.numeric(difftime(end_time, start_time, units = "secs"))
+  
+  print("Time taken in seconds ")
+  print(time_taken)
+  print("accuracy is ")
+  print(acc)
+  
+}
+
+```
+
+```{r}
+run_model_v3(df_100)
+```
+
+```{r}
+run_model_v3(df_1000)
+```
+
+```{r}
+run_model_v3(df_10000)
+```
+
+```{r}
+run_model_v3(df_100000)
+```
+
+```{r}
+run_model_v3(df_1000000)
+```
+
+
+
+-------------
+FOR LARGER DATASET that is 10000000
+
+```{r}
+run_model_v2(df_10000000)
+```
+
+
+```{r}
+run_model_v3(df_10000000)
+```
